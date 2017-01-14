@@ -17,14 +17,14 @@
 package com.example.androidthings.button;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
-
-import com.google.android.things.contrib.driver.button.Button;
-import com.google.android.things.contrib.driver.button.ButtonInputDriver;
-import com.google.android.things.pio.Gpio;
-import com.google.android.things.pio.PeripheralManagerService;
 import android.util.Log;
 import android.view.KeyEvent;
+
+import com.google.android.things.pio.Gpio;
+import com.google.android.things.pio.PeripheralManagerService;
+import com.tatsu.things.button.ButtonDriverService;
 
 import java.io.IOException;
 
@@ -41,7 +41,6 @@ public class ButtonActivity extends Activity {
     private static final String TAG = ButtonActivity.class.getSimpleName();
 
     private Gpio mLedGpio;
-    private ButtonInputDriver mButtonInputDriver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,14 +53,8 @@ public class ButtonActivity extends Activity {
             mLedGpio = pioService.openGpio(BoardDefaults.getGPIOForLED());
             mLedGpio.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
 
-            Log.i(TAG, "Registering button driver");
-            // Initialize and register the InputDriver that will emit SPACE key events
-            // on GPIO state changes.
-            mButtonInputDriver = new ButtonInputDriver(
-                    BoardDefaults.getGPIOForButton(),
-                    Button.LogicState.PRESSED_WHEN_LOW,
-                    KeyEvent.KEYCODE_SPACE);
-            mButtonInputDriver.register();
+            Log.i(TAG, "Registering button driver service");
+            startService(new Intent(this, ButtonDriverService.class));
         } catch (IOException e) {
             Log.e(TAG, "Error configuring GPIO pins", e);
         }
@@ -104,16 +97,7 @@ public class ButtonActivity extends Activity {
     protected void onDestroy(){
         super.onDestroy();
 
-        if (mButtonInputDriver != null) {
-            mButtonInputDriver.unregister();
-            try {
-                mButtonInputDriver.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error closing Button driver", e);
-            } finally{
-                mButtonInputDriver = null;
-            }
-        }
+        stopService(new Intent(this, ButtonDriverService.class));
 
         if (mLedGpio != null) {
             try {
