@@ -22,30 +22,32 @@ public class ButtonDriverService extends Service {
     private int mKeycode;
     private InputDriver mDriver;
 
-    public ButtonDriverService() throws IOException {
-        mDevice = new Button(BoardDefaults.getGPIOForButton(),
-                Button.LogicState.PRESSED_WHEN_LOW);
-        mKeycode = KeyEvent.KEYCODE_SPACE;
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
 
         // Create a new driver instance
+        try {
+            mDevice = new Button(BoardDefaults.getGPIOForButton(),
+                    Button.LogicState.PRESSED_WHEN_LOW);
+            mDevice.setOnButtonEventListener(new Button.OnButtonEventListener() {
+                @Override
+                public void onButtonEvent(Button b, boolean pressed) {
+                    // A state change has occurred
+                    triggerEvent(pressed);
+                }
+            });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        mKeycode = KeyEvent.KEYCODE_SPACE;
+
         mDriver = InputDriver.builder(InputDevice.SOURCE_CLASS_BUTTON)
                 .setName(DRIVER_NAME)
                 .setVersion(DRIVER_VERSION)
                 .setKeys(new int[]{mKeycode})
                 .build();
-
-        mDevice.setOnButtonEventListener(new Button.OnButtonEventListener() {
-            @Override
-            public void onButtonEvent(Button b, boolean pressed) {
-                // A state change has occurred
-                triggerEvent(pressed);
-            }
-        });
 
         // Register with the framework
         UserDriverManager manager = UserDriverManager.getManager();
