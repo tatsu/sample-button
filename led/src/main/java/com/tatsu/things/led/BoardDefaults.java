@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.androidthings.button;
+package com.tatsu.things.led;
 
 import android.os.Build;
 

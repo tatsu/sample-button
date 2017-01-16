@@ -17,54 +17,61 @@
 package com.example.androidthings.button;
 
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.RemoteException;
 import android.util.Log;
 import android.view.KeyEvent;
 
-import com.google.android.things.pio.Gpio;
-import com.google.android.things.pio.PeripheralManagerService;
 import com.tatsu.things.button.ButtonDriverService;
-
-import java.io.IOException;
+import com.tatsu.things.led.LedDriverService;
 
 /**
  * Example of using Button driver for toggling a LED.
- *
- * This activity initialize an InputDriver to emit key events when the button GPIO pin state change
- * and flip the state of the LED GPIO pin.
- *
- * You need to connect an LED and a push button switch to pins specified in {@link BoardDefaults}
- * according to the schematic provided in the sample README.
  */
 public class ButtonActivity extends Activity {
     private static final String TAG = ButtonActivity.class.getSimpleName();
 
-    private Gpio mLedGpio;
+    private LedDriverService mLedDriverService;
+
+    private ServiceConnection mConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName className,
+                                       IBinder service) {
+            LedDriverService.LedDriverBinder binder = (LedDriverService.LedDriverBinder) service;
+            mLedDriverService = binder.getService();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            mLedDriverService = null;
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.i(TAG, "Starting ButtonActivity");
 
-        PeripheralManagerService pioService = new PeripheralManagerService();
-        try {
-            Log.i(TAG, "Configuring GPIO pins");
-            mLedGpio = pioService.openGpio(BoardDefaults.getGPIOForLED());
-            mLedGpio.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+        bindService(new Intent(this, LedDriverService.class), mConnection, Context.BIND_AUTO_CREATE);
 
-            Log.i(TAG, "Registering button driver service");
-            startService(new Intent(this, ButtonDriverService.class));
-        } catch (IOException e) {
-            Log.e(TAG, "Error configuring GPIO pins", e);
-        }
+        startService(new Intent(this, ButtonDriverService.class));
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_SPACE) {
-            // Turn on the LED
-            setLedValue(true);
+            try {
+                // Turn on the LED
+                mLedDriverService.setLedValue(true);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
             return true;
         }
 
@@ -74,23 +81,16 @@ public class ButtonActivity extends Activity {
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_SPACE) {
-            // Turn off the LED
-            setLedValue(false);
+            try {
+                // Turn off the LED
+                mLedDriverService.setLedValue(false);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
             return true;
         }
 
         return super.onKeyUp(keyCode, event);
-    }
-
-    /**
-     * Update the value of the LED output.
-     */
-    private void setLedValue(boolean value) {
-        try {
-            mLedGpio.setValue(value);
-        } catch (IOException e) {
-            Log.e(TAG, "Error updating GPIO value", e);
-        }
     }
 
     @Override
@@ -98,16 +98,6 @@ public class ButtonActivity extends Activity {
         super.onDestroy();
 
         stopService(new Intent(this, ButtonDriverService.class));
-
-        if (mLedGpio != null) {
-            try {
-                mLedGpio.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error closing LED GPIO", e);
-            } finally{
-                mLedGpio = null;
-            }
-            mLedGpio = null;
-        }
+        unbindService(mConnection);
     }
 }
